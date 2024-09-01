@@ -63,6 +63,8 @@ class Becker:
         if not units and init_dummy:
             self.db.init_dummy()
 
+        self.lock = asyncio.Lock()
+
         # Start communicator thread
         self.communicator.start()
 
@@ -77,91 +79,92 @@ class Becker:
             # Sleep implemented in BeckerCommunicator
 
     async def run_codes(self, channel, unit, cmd, test):
-        if unit[2] == 0 and cmd != "TRAIN":
-            _LOGGER.error("The unit %s is not configured", (unit[0]))
-            return
+        async with self.lock:
+            if unit[2] == 0 and cmd != "TRAIN":
+                _LOGGER.error("The unit %s is not configured", (unit[0]))
+                return
 
-        # move up/down dependent on given time
-        mt = re.match(r"(DOWN|UP):(\d+)", cmd)
+            # move up/down dependent on given time
+            mt = re.match(r"(DOWN|UP):(\d+)", cmd)
 
-        codes = []
-        if cmd == "UP":
-            codes.append(generate_code(channel, unit, COMMAND_UP))
-        elif cmd == "UP2":
-            codes.append(generate_code(channel, unit, COMMAND_UP5))
-        elif cmd == "HALT":
-            codes.append(generate_code(channel, unit, COMMAND_HALT))
-        elif cmd == "RELEASE":
-            codes.append(generate_code(channel, unit, COMMAND_RELEASE))
-        elif cmd == "DOWN":
-            codes.append(generate_code(channel, unit, COMMAND_DOWN))
-        elif cmd == "DOWN2":
-            codes.append(generate_code(channel, unit, COMMAND_DOWN5))
-        elif cmd == "TRAIN":
-            codes.append(generate_code(channel, unit, COMMAND_PAIR2))
-            unit[1] += 1
-            codes.append(generate_code(channel, unit, 0x00))
-            unit[1] += 1
-            codes.append(generate_code(channel, unit, COMMAND_PAIR2))
-            # set unit as configured
-            unit[2] = 1
-        elif cmd == "CLEARPOS":
-            codes.append(generate_code(channel, unit, COMMAND_PAIR))
-            unit[1] += 1
-            codes.append(generate_code(channel, unit, COMMAND_CLEARPOS))
-            unit[1] += 1
-            codes.append(generate_code(channel, unit, COMMAND_CLEARPOS2))
-            unit[1] += 1
-            codes.append(generate_code(channel, unit, COMMAND_CLEARPOS3))
-            unit[1] += 1
-            codes.append(generate_code(channel, unit, COMMAND_CLEARPOS4))
-        elif cmd == "REMOVE":
-            codes.append(generate_code(channel, unit, COMMAND_PAIR2))
-            unit[1] += 1
-            codes.append(generate_code(channel, unit, 0x00))
-            unit[1] += 1
-            codes.append(generate_code(channel, unit, COMMAND_PAIR2))
-            unit[1] += 1
-            codes.append(generate_code(channel, unit, COMMAND_PAIR3))
-            unit[1] += 1
-            codes.append(generate_code(channel, unit, COMMAND_PAIR4))
-        elif cmd == "TRAINMASTER":
-            codes.append(generate_code(channel, unit, COMMAND_PAIR))
-            unit[1] += 1
-            codes.append(generate_code(channel, unit, COMMAND_PAIR2))
-            unit[1] += 1
-            codes.append(generate_code(channel, unit, COMMAND_PAIR3))
-            unit[1] += 1
-            codes.append(generate_code(channel, unit, COMMAND_PAIR4))
-            # set unit as configured
-            unit[2] = 1
+            codes = []
+            if cmd == "UP":
+                codes.append(generate_code(channel, unit, COMMAND_UP))
+            elif cmd == "UP2":
+                codes.append(generate_code(channel, unit, COMMAND_UP5))
+            elif cmd == "HALT":
+                codes.append(generate_code(channel, unit, COMMAND_HALT))
+            elif cmd == "RELEASE":
+                codes.append(generate_code(channel, unit, COMMAND_RELEASE))
+            elif cmd == "DOWN":
+                codes.append(generate_code(channel, unit, COMMAND_DOWN))
+            elif cmd == "DOWN2":
+                codes.append(generate_code(channel, unit, COMMAND_DOWN5))
+            elif cmd == "TRAIN":
+                codes.append(generate_code(channel, unit, COMMAND_PAIR2))
+                unit[1] += 1
+                codes.append(generate_code(channel, unit, 0x00))
+                unit[1] += 1
+                codes.append(generate_code(channel, unit, COMMAND_PAIR2))
+                # set unit as configured
+                unit[2] = 1
+            elif cmd == "CLEARPOS":
+                codes.append(generate_code(channel, unit, COMMAND_PAIR))
+                unit[1] += 1
+                codes.append(generate_code(channel, unit, COMMAND_CLEARPOS))
+                unit[1] += 1
+                codes.append(generate_code(channel, unit, COMMAND_CLEARPOS2))
+                unit[1] += 1
+                codes.append(generate_code(channel, unit, COMMAND_CLEARPOS3))
+                unit[1] += 1
+                codes.append(generate_code(channel, unit, COMMAND_CLEARPOS4))
+            elif cmd == "REMOVE":
+                codes.append(generate_code(channel, unit, COMMAND_PAIR2))
+                unit[1] += 1
+                codes.append(generate_code(channel, unit, 0x00))
+                unit[1] += 1
+                codes.append(generate_code(channel, unit, COMMAND_PAIR2))
+                unit[1] += 1
+                codes.append(generate_code(channel, unit, COMMAND_PAIR3))
+                unit[1] += 1
+                codes.append(generate_code(channel, unit, COMMAND_PAIR4))
+            elif cmd == "TRAINMASTER":
+                codes.append(generate_code(channel, unit, COMMAND_PAIR))
+                unit[1] += 1
+                codes.append(generate_code(channel, unit, COMMAND_PAIR2))
+                unit[1] += 1
+                codes.append(generate_code(channel, unit, COMMAND_PAIR3))
+                unit[1] += 1
+                codes.append(generate_code(channel, unit, COMMAND_PAIR4))
+                # set unit as configured
+                unit[2] = 1
 
-        if mt:
-            _LOGGER.INFO("Moving %s for %s seconds..." % (mt.group(1), mt.group(2)))
-            # move down/up for a specific time
-            if mt.group(1) == "UP":
-                code = generate_code(channel, unit, COMMAND_UP)
-            elif mt.group(1) == "DOWN":
-                code = generate_code(channel, unit, COMMAND_DOWN)
+            if mt:
+                _LOGGER.info("Moving %s for %s seconds..." % (mt.group(1), mt.group(2)))
+                # move down/up for a specific time
+                if mt.group(1) == "UP":
+                    code = generate_code(channel, unit, COMMAND_UP)
+                elif mt.group(1) == "DOWN":
+                    code = generate_code(channel, unit, COMMAND_DOWN)
 
-            unit[1] += 1
-            await self.write([code])
+                unit[1] += 1
+                await self.write([code])
 
-            await asyncio.sleep(int(mt.group(2)))
+                await asyncio.sleep(int(mt.group(2)))
 
-            # stop moving
-            code = generate_code(channel, unit, COMMAND_HALT)
-            unit[1] += 1
-            await self.write([code])
-        else:
-            unit[1] += 1
+                # stop moving
+                code = generate_code(channel, unit, COMMAND_HALT)
+                unit[1] += 1
+                await self.write([code])
+            else:
+                unit[1] += 1
 
-        # append the release button code
-        #codes.append(generate_code(channel, unit, 0))
-        #unit[1] += 1
+            # append the release button code
+            #codes.append(generate_code(channel, unit, 0))
+            #unit[1] += 1
 
-        await self.write(codes)
-        self.db.set_unit(unit, test)
+            await self.write(codes)
+            self.db.set_unit(unit, test)
 
     async def send(self, channel, cmd, test=False):
 
